@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Heptabase 個人知識工作流實踐指南</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #F8F9FA; /* Light warm gray/off-white */
+            color: #334155; /* Slate 700 */
+        }
+
+        /* Custom Scrollbar for inner elements */
+        .custom-scroll::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #CBD5E1;
+            border-radius: 4px;
+        }
+
+        /* Mandatory Chart Container Styling */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+
+        /* HTML diagram specific styles (replacing SVG/Mermaid) */
+        .connection-line-down {
+            position: absolute;
+            width: 2px;
+            background-color: #94A3B8;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 0;
+        }
+        .connection-line-right {
+            position: absolute;
+            height: 2px;
+            background-color: #94A3B8;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 0;
+        }
+        
+        .card-enter {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* UI Accents */
+        .accent-bg { background-color: #E0E7FF; } /* Indigo 100 */
+        .accent-text { color: #4338CA; } /* Indigo 700 */
+        .accent-border { border-color: #818CF8; } /* Indigo 400 */
+    </style>
+</head>
+<body class="antialiased h-screen flex flex-col overflow-hidden">
+
+    <!-- Chosen Palette: Warm Neutrals (Stone/Slate) with Indigo Accents for a calm, focus-driven UI mimicking modern PKM tools. -->
+    
+    <!-- Application Structure Plan: 
+         Structure: A unified SPA dashboard representing the requested workflow. 
+         Layout: Top navigation for conceptual phases (Vision, Simulation), Left sidebar for operational workflow steps (Capture, Structure, Output), Main content area for interactive explanations and consultant advice.
+         Why: The user needs a "how-to" guide based on their specific questions. A linear document is passive. This dashboard breaks the workflow into actionable, interactive modules. The user can click through the exact daily steps, seeing how data moves and transforms, directly addressing their questions about layers, tags, and tools within the specific context of that step. 
+    -->
+
+    <!-- Visualization & Content Choices: 
+         1. System Vision -> Goal: Set context -> Method: Text block with high-level HTML flow diagram -> Interaction: None -> Justification: Establishes the mental model. (No SVG/Mermaid used).
+         2. Capture Module -> Goal: Address "Journal vs Inbox" & "No external tools" -> Method: Split UI showing a mock Journal feed converting to a Card. Toggle buttons for explanations. -> Interaction: Click to "process" a journal entry into a card. -> Justification: Demonstrates the low-friction entry and the manual atomization process requested by the user.
+         3. Knowledge Base Module -> Goal: Address "Whiteboard Layers" & "Tags as Concepts" -> Method: Interactive nested CSS Grid mimicking a whiteboard. Clickable tags on a mock card. -> Interaction: Drill-down HTML structure to show layers. Hover/Click tags to show their purpose. -> Justification: Visually proves that 2 layers (or infinite nesting via sub-whiteboards) works without clutter, and demonstrates tag utility.
+         4. Project Module -> Goal: Show output orientation -> Method: Drag-and-drop simulated layout (using simple JS click-to-move for simplicity without complex libraries) pulling from a "Knowledge Base" list to an "Outline" list. -> Interaction: Click card to move to outline. -> Justification: Makes the abstract concept of "resource reuse" concrete.
+         5. System Value (Chart) -> Goal: Fulfill Chart.js requirement & show long-term value -> Method: Line chart comparing linear notes vs networked notes over time. -> Interaction: Standard Chart.js tooltips.
+    -->
+
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
+    <!-- Top Navigation -->
+    <header class="bg-white border-b border-slate-200 shadow-sm z-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded bg-indigo-600 text-white flex items-center justify-center font-bold text-xl">H</div>
+                <h1 class="text-xl font-semibold text-slate-800 tracking-tight">Heptabase 實踐工作流</h1>
+            </div>
+            <nav class="flex space-x-4">
+                <button onclick="app.switchTab('vision')" class="nav-btn px-3 py-2 text-sm font-medium rounded-md text-indigo-700 bg-indigo-50" data-target="vision">系統願景</button>
+                <button onclick="app.switchTab('simulation')" class="nav-btn px-3 py-2 text-sm font-medium rounded-md text-slate-600 hover:bg-slate-50 hover:text-slate-900" data-target="simulation">效益模擬</button>
+            </nav>
+        </div>
+    </header>
+
+    <div class="flex-1 flex overflow-hidden">
+        <!-- Sidebar Navigation (Workflow Steps) -->
+        <aside class="w-64 bg-slate-50 border-r border-slate-200 flex flex-col custom-scroll overflow-y-auto z-10">
+            <div class="p-4">
+                <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">日常執行步驟</h2>
+                <nav class="space-y-1">
+                    <button onclick="app.switchTab('capture')" class="nav-btn w-full flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-700 hover:bg-white hover:shadow-sm transition-all" data-target="capture">
+                        <span class="mr-3 text-lg">📥</span> 1. 靈感捕獲 (Inflow)
+                    </button>
+                    <button onclick="app.switchTab('structure')" class="nav-btn w-full flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-700 hover:bg-white hover:shadow-sm transition-all" data-target="structure">
+                        <span class="mr-3 text-lg">🧠</span> 2. 結構化知識庫
+                    </button>
+                    <button onclick="app.switchTab('project')" class="nav-btn w-full flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-700 hover:bg-white hover:shadow-sm transition-all" data-target="project">
+                        <span class="mr-3 text-lg">🚀</span> 3. 產出導向專案
+                    </button>
+                </nav>
+            </div>
+            
+            <div class="mt-auto p-4 bg-indigo-50 border-t border-indigo-100 m-2 rounded-lg">
+                <h3 class="text-sm font-bold text-indigo-800 mb-1">💡 顧問隨筆</h3>
+                <p id="consultant-tip" class="text-xs text-indigo-700 leading-relaxed">
+                    點擊左側步驟，我會針對您的需求（日誌運用、白板層級、標籤管理）提供具體的實作建議。
+                </p>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 bg-white overflow-y-auto custom-scroll relative">
+            
+            <!-- View: Vision -->
+            <section id="view-vision" class="view-section p-8 max-w-5xl mx-auto block card-enter">
+                <h2 class="text-3xl font-bold text-slate-800 mb-6">建立全方位個人知識管理系統 (PKM)</h2>
+                <p class="text-lg text-slate-600 mb-8 leading-relaxed">
+                    這是一套為您量身打造的 Heptabase 整合流程，旨在連結「即時靈感」、「結構化知識庫」與「目標導向專案」，達成從輸入到產出的無縫視覺化管理。
+                </p>
+
+                <div class="bg-slate-50 p-6 rounded-xl border border-slate-200 mb-8">
+                    <h3 class="text-lg font-semibold mb-4 text-slate-700">資訊流動藍圖 (Workflow Logic)</h3>
+                    <!-- HTML Diagram -->
+                    <div class="flex flex-col md:flex-row items-center justify-between gap-4 relative">
+                        <div class="bg-white p-4 rounded-lg shadow border border-slate-200 text-center w-full md:w-1/4 z-10">
+                            <div class="text-2xl mb-2">💡</div>
+                            <div class="font-bold text-slate-700">流入 (Inflow)</div>
+                            <div class="text-xs text-slate-500 mt-1">外部資訊 / 想法進入 Journal</div>
+                        </div>
+                        <div class="text-slate-400 font-bold hidden md:block">→</div>
+                        <div class="text-slate-400 font-bold md:hidden">↓</div>
+                        
+                        <div class="bg-white p-4 rounded-lg shadow border border-slate-200 text-center w-full md:w-1/4 z-10">
+                            <div class="text-2xl mb-2">⚙️</div>
+                            <div class="font-bold text-slate-700">內化 (Internalize)</div>
+                            <div class="text-xs text-slate-500 mt-1">定期萃取為原子卡片 (Cards)</div>
+                        </div>
+                        <div class="text-slate-400 font-bold hidden md:block">→</div>
+                        <div class="text-slate-400 font-bold md:hidden">↓</div>
+
+                        <div class="bg-white p-4 rounded-lg shadow border border-slate-200 text-center w-full md:w-1/4 z-10">
+                            <div class="text-2xl mb-2">🗺️</div>
+                            <div class="font-bold text-slate-700">結構化 (Structure)</div>
+                            <div class="text-xs text-slate-500 mt-1">於 Map/Whiteboard 建立關聯</div>
+                        </div>
+                        <div class="text-slate-400 font-bold hidden md:block">→</div>
+                        <div class="text-slate-400 font-bold md:hidden">↓</div>
+
+                        <div class="bg-white p-4 rounded-lg shadow border border-indigo-200 accent-bg text-center w-full md:w-1/4 z-10">
+                            <div class="text-2xl mb-2">🎯</div>
+                            <div class="font-bold accent-text">產出 (Output)</div>
+                            <div class="text-xs text-indigo-600 mt-1">專案白板引用卡片完成執行</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="border border-slate-200 rounded-lg p-5">
+                        <h4 class="font-bold text-slate-800 mb-2">👁️ 視覺化優先</h4>
+                        <p class="text-sm text-slate-600">優先使用白板空間佈局來理解複雜邏輯，利用大腦的空間記憶，而非單純文字堆疊。</p>
+                    </div>
+                    <div class="border border-slate-200 rounded-lg p-5">
+                        <h4 class="font-bold text-slate-800 mb-2">♻️ 低重複率</h4>
+                        <p class="text-sm text-slate-600">相同資訊僅存在於一張卡片中。在不同專案中需要時，透過「引用 (Reference)」出現在多個白板。</p>
+                    </div>
+                    <div class="border border-slate-200 rounded-lg p-5">
+                        <h4 class="font-bold text-slate-800 mb-2">🌱 動態演進</h4>
+                        <p class="text-sm text-slate-600">系統具備彈性。知識的分類與結構會隨著時間與您的理解加深而自然重新組合與調整。</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- View: Capture -->
+            <section id="view-capture" class="view-section p-8 max-w-5xl mx-auto hidden">
+                <div class="flex justify-between items-end mb-6">
+                    <div>
+                        <h2 class="text-3xl font-bold text-slate-800 mb-2">1. 靈感捕獲模組 (Capture)</h2>
+                        <p class="text-slate-600">將生活中碎片化的想法，建立一個低摩擦的「緩衝區」。</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="app.toggleCaptureInfo('journal')" class="px-3 py-1 text-sm rounded-full border border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">Q: Journal vs Inbox?</button>
+                        <button onclick="app.toggleCaptureInfo('tools')" class="px-3 py-1 text-sm rounded-full border border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">Q: 外部工具取代方案?</button>
+                    </div>
+                </div>
+
+                <!-- Interactive Explanation Panel -->
+                <div id="capture-explanation" class="hidden mb-6 bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg shadow-sm">
+                    <h4 id="capture-exp-title" class="font-bold text-blue-800 mb-2"></h4>
+                    <p id="capture-exp-content" class="text-sm text-blue-700 leading-relaxed"></p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <!-- Left: Mock Journal -->
+                    <div class="bg-white border border-slate-200 shadow-sm rounded-xl overflow-hidden flex flex-col h-[500px]">
+                        <div class="bg-slate-100 px-4 py-3 border-b border-slate-200 flex justify-between items-center">
+                            <span class="font-bold text-slate-700 flex items-center gap-2"><span class="text-xl">📅</span> 今日日誌 (Journal)</span>
+                            <span class="text-xs text-slate-500">低摩擦輸入區</span>
+                        </div>
+                        <div class="p-4 flex-1 overflow-y-auto bg-slate-50 space-y-4 custom-scroll" id="journal-feed">
+                            <!-- Journal entries generated by JS -->
+                        </div>
+                        <div class="p-3 bg-white border-t border-slate-200 flex gap-2">
+                            <input type="text" id="new-journal-input" placeholder="隨手記下靈感 (手機 App 直接輸入)..." class="flex-1 border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-indigo-500">
+                            <button onclick="app.addJournalEntry()" class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700">記錄</button>
+                        </div>
+                    </div>
+
+                    <!-- Right: Processing Area -->
+                    <div class="bg-white border border-slate-200 shadow-sm rounded-xl overflow-hidden flex flex-col h-[500px]">
+                        <div class="bg-slate-100 px-4 py-3 border-b border-slate-200 flex justify-between items-center">
+                            <span class="font-bold text-slate-700 flex items-center gap-2"><span class="text-xl">⚙️</span> 處理與內化 (Processing)</span>
+                            <span class="text-xs text-slate-500">轉化為獨立卡片</span>
+                        </div>
+                        <div class="p-6 flex-1 flex flex-col items-center justify-center text-center bg-slate-50 relative" id="processing-area">
+                            
+                            <div class="text-slate-400 mb-4 text-4xl">📥</div>
+                            <p class="text-slate-500 text-sm mb-6 max-w-xs">點擊左側日誌的 <span class="inline-block px-2 py-1 bg-white border border-slate-300 rounded text-xs font-bold text-slate-700 shadow-sm">萃取為卡片</span> 按鈕，將具備長期價值的資訊「原子化」。</p>
+                            
+                            <!-- Placeholder for generated card -->
+                            <div id="generated-card-container" class="w-full max-w-sm hidden">
+                                <div class="bg-white border border-indigo-200 shadow-md rounded-lg p-4 text-left relative card-enter">
+                                    <div class="absolute -top-3 -right-3 bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow">已建立</div>
+                                    <input type="text" class="font-bold text-slate-800 w-full border-b border-dashed border-slate-300 pb-1 mb-2 focus:outline-none focus:border-indigo-500 bg-transparent" value="新卡片標題...">
+                                    <textarea class="w-full text-sm text-slate-600 h-24 resize-none focus:outline-none bg-transparent" readonly id="generated-card-text"></textarea>
+                                    <div class="mt-3 flex gap-2 border-t border-slate-100 pt-2">
+                                        <span class="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded cursor-pointer hover:bg-slate-200" onclick="app.alert('下一步：進入知識庫模組加入概念標籤')">+ 新增概念標籤</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- View: Structure (Knowledge Base) -->
+            <section id="view-structure" class="view-section p-8 max-w-5xl mx-auto hidden">
+                <div class="flex justify-between items-end mb-6">
+                    <div>
+                        <h2 class="text-3xl font-bold text-slate-800 mb-2">2. 結構化知識庫 (Knowledge Base)</h2>
+                        <p class="text-slate-600">將原子化卡片透過「標籤」與「白板」建立個人知識網絡。</p>
+                    </div>
+                     <div class="flex gap-2">
+                        <button onclick="app.toggleStructureInfo('layers')" class="px-3 py-1 text-sm rounded-full border border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">Q: 白板兩層架構夠用嗎？</button>
+                        <button onclick="app.toggleStructureInfo('tags')" class="px-3 py-1 text-sm rounded-full border border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">Q: 標籤如何管理概念？</button>
+                    </div>
+                </div>
+
+                <!-- Interactive Explanation Panel -->
+                <div id="structure-explanation" class="hidden mb-6 bg-purple-50 border-l-4 border-purple-500 p-4 rounded-r-lg shadow-sm">
+                    <h4 id="structure-exp-title" class="font-bold text-purple-800 mb-2"></h4>
+                    <p id="structure-exp-content" class="text-sm text-purple-700 leading-relaxed"></p>
+                </div>
+
+                <div class="bg-white border border-slate-200 shadow-sm rounded-xl p-6 min-h-[500px]">
+                    
+                    <!-- Simulating a Whiteboard Layer -->
+                    <div class="mb-4 flex items-center gap-2 text-sm text-slate-500 font-medium bg-slate-100 p-2 rounded-lg inline-flex">
+                        <span>🏠 Map</span>
+                        <span>/</span>
+                        <span class="text-indigo-600 font-bold cursor-pointer hover:underline" onclick="app.resetWhiteboardView()">領域：心理學 (層級 1)</span>
+                        <span id="breadcrumb-layer2" class="hidden"> / <span class="text-indigo-600 font-bold">分支：認知心理學 (層級 2)</span></span>
+                    </div>
+
+                    <!-- Interactive HTML Canvas representing Whiteboard -->
+                    <div class="relative w-full h-[400px] border-2 border-dashed border-slate-200 rounded-lg bg-stone-50 overflow-hidden" id="whiteboard-canvas">
+                        
+                        <!-- View: Layer 1 (Psychology Domains) -->
+                        <div id="wb-layer-1" class="absolute inset-0 p-8 grid grid-cols-2 gap-8 card-enter">
+                            <!-- A nested whiteboard representation -->
+                            <div class="border-2 border-indigo-200 bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer flex flex-col" onclick="app.enterLayer2()">
+                                <div class="flex items-center gap-2 mb-4 border-b border-slate-100 pb-2">
+                                    <span class="text-2xl">🗂️</span>
+                                    <h3 class="font-bold text-slate-700">認知心理學 (子白板)</h3>
+                                </div>
+                                <div class="flex-1 flex items-center justify-center text-slate-400 text-sm">
+                                    點擊進入查看內部卡片...
+                                </div>
+                            </div>
+
+                             <div class="border-2 border-slate-200 bg-white rounded-xl p-4 shadow-sm opacity-60 flex flex-col">
+                                <div class="flex items-center gap-2 mb-4 border-b border-slate-100 pb-2">
+                                    <span class="text-2xl">🗂️</span>
+                                    <h3 class="font-bold text-slate-700">行為心理學</h3>
+                                </div>
+                                <div class="flex-1 flex items-center justify-center text-slate-400 text-sm">
+                                    (未展開)
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- View: Layer 2 (Inside Cognitive Psych) -->
+                        <div id="wb-layer-2" class="absolute inset-0 p-8 hidden card-enter">
+                            <!-- Cards with Tags -->
+                            <div class="absolute top-8 left-8 w-64 bg-white border border-amber-200 shadow-md rounded-lg p-4 cursor-pointer hover:-translate-y-1 transition-transform" onclick="app.highlightConcept('系統一與系統二')">
+                                <h4 class="font-bold text-slate-800 text-sm mb-2 border-b border-slate-100 pb-1">大腦的雙系統運作機制</h4>
+                                <p class="text-xs text-slate-600 mb-3 line-clamp-3">系統一是直覺的、快速的；系統二是理性的、緩慢的。人在多數時候依賴系統一以節省能量...</p>
+                                <div class="flex flex-wrap gap-1">
+                                    <span class="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded tag-concept" data-concept="系統一與系統二">#系統一與系統二</span>
+                                    <span class="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded tag-concept" data-concept="決策疲勞">#決策疲勞</span>
+                                </div>
+                            </div>
+
+                            <div class="absolute top-24 right-16 w-64 bg-white border border-amber-200 shadow-md rounded-lg p-4 cursor-pointer hover:-translate-y-1 transition-transform" onclick="app.highlightConcept('決策疲勞')">
+                                <h4 class="font-bold text-slate-800 text-sm mb-2 border-b border-slate-100 pb-1">意志力是一種消耗品</h4>
+                                <p class="text-xs text-slate-600 mb-3 line-clamp-3">隨著做決定的次數增加，大腦的系統二會疲勞，導致後續傾向做出保守或衝動的決定...</p>
+                                <div class="flex flex-wrap gap-1">
+                                    <span class="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded tag-concept" data-concept="決策疲勞">#決策疲勞</span>
+                                    <span class="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded tag-concept" data-concept="自我耗損">#自我耗損</span>
+                                </div>
+                            </div>
+
+                            <!-- Visual connection line using HTML -->
+                            <!-- Note: Hardcoded position for simulation purposes to avoid complex layout calc -->
+                            <div class="absolute top-[80px] left-[270px] w-[200px] h-[2px] bg-slate-300 border-dashed transform rotate-12 transform-origin-left z-0 pointer-events-none" style="border-top-width: 2px;"></div>
+
+                            <!-- Panel demonstrating "Tag as Concept Search" -->
+                            <div id="concept-search-panel" class="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-slate-800 text-white p-4 rounded-xl shadow-lg w-[400px] hidden card-enter z-20">
+                                <div class="flex justify-between items-center mb-2 border-b border-slate-600 pb-2">
+                                    <span class="font-bold text-sm flex items-center gap-2">🔍 概念查詢：<span id="active-concept-name" class="text-indigo-300"></span></span>
+                                    <button class="text-slate-400 hover:text-white" onclick="document.getElementById('concept-search-panel').classList.add('hidden')">✕</button>
+                                </div>
+                                <p class="text-xs text-slate-300 mb-2">未來寫作時，點擊標籤可跨越不同白板，抽取出所有相關卡片：</p>
+                                <ul class="text-xs space-y-1 bg-slate-700 p-2 rounded max-h-32 overflow-y-auto custom-scroll" id="concept-results">
+                                    <!-- Populated by JS -->
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- View: Project -->
+            <section id="view-project" class="view-section p-8 max-w-5xl mx-auto hidden">
+                <h2 class="text-3xl font-bold text-slate-800 mb-2">3. 產出導向專案 (Project Management)</h2>
+                <p class="text-slate-600 mb-6">整合現有知識，為特定目標建立專屬白板，直接佈局產出框架。</p>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 h-[550px]">
+                    <!-- Knowledge Base Sidebar -->
+                    <div class="col-span-1 bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden shadow-sm">
+                        <div class="bg-slate-100 px-4 py-3 border-b border-slate-200">
+                            <h3 class="font-bold text-slate-700 flex items-center gap-2">📚 知識庫 (搜尋結果)</h3>
+                            <input type="text" placeholder="搜尋標籤: #決策疲勞" class="mt-2 w-full text-xs px-2 py-1 border border-slate-300 rounded focus:outline-none" readonly>
+                        </div>
+                        <div class="p-3 overflow-y-auto custom-scroll flex-1 space-y-3 bg-slate-50">
+                            <p class="text-xs text-slate-500 mb-2">點擊卡片以「引用」至右側專案框架中。</p>
+                            
+                            <!-- Source Card 1 -->
+                            <div class="bg-white border border-slate-200 p-3 rounded shadow-sm cursor-pointer hover:border-indigo-400 transition-colors" onclick="app.referenceCard(this, '大腦的雙系統運作機制')">
+                                <h4 class="font-bold text-xs text-slate-800 mb-1">大腦的雙系統運作機制</h4>
+                                <div class="text-[10px] text-slate-500 line-clamp-2">系統一是直覺的、快速的；系統二是理性的...</div>
+                            </div>
+                             <!-- Source Card 2 -->
+                             <div class="bg-white border border-slate-200 p-3 rounded shadow-sm cursor-pointer hover:border-indigo-400 transition-colors" onclick="app.referenceCard(this, '意志力是一種消耗品')">
+                                <h4 class="font-bold text-xs text-slate-800 mb-1">意志力是一種消耗品</h4>
+                                <div class="text-[10px] text-slate-500 line-clamp-2">隨著做決定的次數增加，大腦的系統二會疲勞...</div>
+                            </div>
+                            <!-- Source Card 3 -->
+                            <div class="bg-white border border-slate-200 p-3 rounded shadow-sm cursor-pointer hover:border-indigo-400 transition-colors" onclick="app.referenceCard(this, '降低選擇成本的設計')">
+                                <h4 class="font-bold text-xs text-slate-800 mb-1">降低選擇成本的設計</h4>
+                                <div class="text-[10px] text-slate-500 line-clamp-2">在產品設計中提供預設值，可以減少用戶的自我耗損...</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Project Whiteboard -->
+                    <div class="col-span-2 bg-stone-50 border-2 border-dashed border-slate-300 rounded-xl relative overflow-hidden flex flex-col p-6">
+                        <div class="absolute top-4 right-4 bg-white px-3 py-1 rounded-full shadow-sm text-xs font-bold text-indigo-700 border border-indigo-100 z-10">
+                            專案白板：UX 設計與人類心理學報告
+                        </div>
+
+                        <!-- Outline Structure -->
+                        <div class="flex-1 overflow-y-auto custom-scroll relative">
+                            <!-- Background connecting line for outline -->
+                            <div class="absolute left-8 top-10 bottom-10 w-0.5 bg-slate-200 z-0"></div>
+
+                            <!-- Section 1 -->
+                            <div class="relative z-10 mb-8 pl-12">
+                                <div class="absolute left-6 top-2 w-4 h-4 rounded-full bg-slate-400 border-4 border-stone-50 shadow-sm"></div>
+                                <h3 class="font-bold text-lg text-slate-800 mb-3 border-b-2 border-slate-200 pb-1 inline-block">1. 引言：用戶為何疲憊？</h3>
+                                <div class="min-h-[60px] border-2 border-dashed border-indigo-200 bg-indigo-50/50 rounded-lg p-3 text-center flex items-center justify-center text-indigo-400 text-sm target-dropzone transition-all" id="dropzone-1">
+                                    將相關卡片引用至此處建構大綱
+                                </div>
+                            </div>
+
+                            <!-- Section 2 -->
+                            <div class="relative z-10 mb-8 pl-12">
+                                <div class="absolute left-6 top-2 w-4 h-4 rounded-full bg-slate-400 border-4 border-stone-50 shadow-sm"></div>
+                                <h3 class="font-bold text-lg text-slate-800 mb-3 border-b-2 border-slate-200 pb-1 inline-block">2. 理論基礎：決策機制</h3>
+                                <div class="min-h-[60px] border-2 border-dashed border-indigo-200 bg-indigo-50/50 rounded-lg p-3 text-center flex items-center justify-center text-indigo-400 text-sm target-dropzone transition-all" id="dropzone-2">
+                                     將相關卡片引用至此處建構大綱
+                                </div>
+                            </div>
+
+                            <!-- Section 3 -->
+                            <div class="relative z-10 pl-12">
+                                <div class="absolute left-6 top-2 w-4 h-4 rounded-full bg-slate-400 border-4 border-stone-50 shadow-sm"></div>
+                                <h3 class="font-bold text-lg text-slate-800 mb-3 border-b-2 border-slate-200 pb-1 inline-block">3. 實際應用：改善 UX 設計</h3>
+                                <div class="min-h-[60px] border-2 border-dashed border-indigo-200 bg-indigo-50/50 rounded-lg p-3 text-center flex items-center justify-center text-indigo-400 text-sm target-dropzone transition-all" id="dropzone-3">
+                                     將相關卡片引用至此處建構大綱
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- View: Simulation (Chart.js) -->
+            <section id="view-simulation" class="view-section p-8 max-w-5xl mx-auto hidden">
+                 <h2 class="text-3xl font-bold text-slate-800 mb-2">系統化知識的複利效應</h2>
+                 <p class="text-slate-600 mb-8 leading-relaxed">
+                    為什麼要建立這樣的工作流？傳統的線性筆記（如單純的 Word 文檔或按日期歸檔的筆記）隨著資料量增加，尋找與連結資訊的成本會急遽上升。而基於 Heptabase 的原子化與網狀結構，能產生知識的「複利效應」。
+                </p>
+
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <h3 class="text-lg font-bold text-slate-700 mb-4 text-center">長期寫作/產出效率模擬</h3>
+                    <div class="chart-container">
+                        <canvas id="knowledgeChart"></canvas>
+                    </div>
+                    <div class="mt-4 text-sm text-slate-500 text-center">
+                        <p><strong>洞察：</strong> 網狀知識庫前期需要較多時間處理（將日誌轉化為卡片與標籤），但當卡片量（概念節點）累積越過臨界點後，透過「引用」現有卡片組裝新專案，產出效率將呈指數型增長。</p>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <script>
+        // --- Core Interaction Handling & State Management ---
+        const app = {
+            state: {
+                currentTab: 'vision',
+                journalEntries: [
+                    { id: 1, text: "早上開會覺得產品線太多，使用者選擇困難。這可能跟認知負荷有關？", processed: false },
+                    { id: 2, text: "看了一篇文章提到『決策疲勞』，法官在下午的判決比較保守。", processed: false }
+                ],
+                dropzoneIndex: 1
+            },
+            
+            // UI Initialization
+            init() {
+                this.renderJournal();
+                this.initChart();
+                this.updateConsultantTip('vision');
+            },
+
+            // Functional Navigation
+            switchTab(tabId) {
+                // Update nav styles
+                document.querySelectorAll('.nav-btn').forEach(btn => {
+                    if(btn.dataset.target === tabId) {
+                        btn.classList.replace('text-slate-600', 'text-indigo-700');
+                        btn.classList.replace('hover:bg-slate-50', 'bg-indigo-50');
+                        if(btn.closest('aside')) {
+                            btn.classList.add('bg-white', 'shadow-sm', 'border-l-4', 'border-indigo-500');
+                        }
+                    } else {
+                        btn.classList.replace('text-indigo-700', 'text-slate-600');
+                        btn.classList.replace('bg-indigo-50', 'hover:bg-slate-50');
+                        if(btn.closest('aside')) {
+                            btn.classList.remove('bg-white', 'shadow-sm', 'border-l-4', 'border-indigo-500');
+                        }
+                    }
+                });
+
+                // Update views
+                document.querySelectorAll('.view-section').forEach(view => {
+                    view.classList.add('hidden');
+                });
+                const activeView = document.getElementById(`view-${tabId}`);
+                activeView.classList.remove('hidden');
+                
+                // Trigger reflow to restart animation
+                void activeView.offsetWidth; 
+                activeView.classList.add('card-enter');
+
+                // Update Consultant Tip
+                this.updateConsultantTip(tabId);
+                this.state.currentTab = tabId;
+
+                // Handle specific view logic
+                if (tabId === 'simulation' && this.chart) {
+                    this.chart.update(); // ensure chart renders correctly when unhidden
+                }
+            },
+
+            // --- Consultant Logic ---
+            updateConsultantTip(tabId) {
+                const tipEl = document.getElementById('consultant-tip');
+                const tips = {
+                    'vision': '點擊左側步驟，我會針對您的需求（日誌運用、白板層級、標籤管理）提供具體的實作建議。',
+                    'capture': '顧問提示：您曾詢問「日誌」與「Inbox」的差異。請點擊右上方的 Q&A 按鈕查看我的建議。',
+                    'structure': '顧問提示：關於「白板兩層架構」與「標籤作為概念」的疑問，請操作互動白板或點擊右上角 Q&A。',
+                    'project': '顧問提示：這就是將日常累積轉化為產出的關鍵！利用視覺化白板，直接將卡片拖曳（點擊）成最終文章的大綱。',
+                    'simulation': '顧問提示：建立這套系統初期的摩擦力較大，但請堅持下去。當您的概念卡片累積超過 100 張後，您會感受到飛輪效應。'
+                };
+                tipEl.innerHTML = tips[tabId] || '';
+            },
+
+            // --- Capture Module Logic ---
+            renderJournal() {
+                const feed = document.getElementById('journal-feed');
+                feed.innerHTML = '';
+                this.state.journalEntries.forEach(entry => {
+                    if (entry.processed) return;
+                    feed.innerHTML += `
+                        <div class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex flex-col gap-2">
+                            <p class="text-sm text-slate-700">${entry.text}</p>
+                            <div class="flex justify-end">
+                                <button onclick="app.processCard(${entry.id})" class="text-xs bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 px-2 py-1 rounded transition-colors font-medium border border-slate-200 hover:border-indigo-200">
+                                    萃取為卡片 →
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                });
+                if(this.state.journalEntries.filter(e => !e.processed).length === 0) {
+                     feed.innerHTML = `<div class="text-center text-slate-400 text-sm mt-10">今日日誌已清空，幹得好！</div>`;
+                }
+            },
+
+            addJournalEntry() {
+                const input = document.getElementById('new-journal-input');
+                const text = input.value.trim();
+                if (text) {
+                    this.state.journalEntries.push({ id: Date.now(), text: text, processed: false });
+                    input.value = '';
+                    this.renderJournal();
+                }
+            },
+
+            processCard(id) {
+                const entry = this.state.journalEntries.find(e => e.id === id);
+                if(entry) {
+                    entry.processed = true;
+                    this.renderJournal();
+                    
+                    // Show in processing area
+                    const container = document.getElementById('generated-card-container');
+                    const textEl = document.getElementById('generated-card-text');
+                    textEl.value = entry.text;
+                    container.classList.remove('hidden');
+                    
+                    // Reset animation
+                    const cardInner = container.querySelector('div');
+                    cardInner.classList.remove('card-enter');
+                    void cardInner.offsetWidth;
+                    cardInner.classList.add('card-enter');
+                }
+            },
+
+            toggleCaptureInfo(type) {
+                const panel = document.getElementById('capture-explanation');
+                const title = document.getElementById('capture-exp-title');
+                const content = document.getElementById('capture-exp-content');
+                
+                panel.classList.remove('hidden');
+                if (type === 'journal') {
+                    title.innerHTML = '📝 日誌 (Journal) 才是理想的靈感入口';
+                    content.innerHTML = '<strong>Inbox</strong> 通常指一個靜態的文件夾，容易堆積變成「墳墓」。<br><br><strong>Journal (日誌)</strong> 是綁定日期的線性時間流。它擁有最低的記錄摩擦力。您不需分類，不需命名，只需打開 Heptabase 手機 App 寫下想法。每天/每週回顧 Journal 時，才進行「內化」，將有價值的資訊提取出來建立為獨立卡片，並放到白板上。這是一種「清空大腦」的實踐。';
+                } else {
+                    title.innerHTML = '🛠️ 移除外部自動化工具的好處';
+                    content.innerHTML = '您提到想移除外部靈感捕捉工具。這是正確的決定！<br><br>過多自動化（如 Readwise 自動導入等）會導致知識庫充滿「您沒有真正讀過或思考過」的資訊。強迫自己<strong>手動將重點打入 Journal</strong>，這個過程本身就是第一層的過濾與內化。Heptabase 本身的 Quick Capture 已足夠應付日常所需。';
+                }
+            },
+
+            // --- Structure Module Logic ---
+            toggleStructureInfo(type) {
+                const panel = document.getElementById('structure-explanation');
+                const title = document.getElementById('structure-exp-title');
+                const content = document.getElementById('structure-exp-content');
+                
+                panel.classList.remove('hidden');
+                if (type === 'layers') {
+                    title.innerHTML = '🗂️ 白板兩層架構：利用「子白板」無限延伸';
+                    content.innerHTML = '您擔心「主題」->「心理學」再分化會太混亂。在 Heptabase 中，這不是問題。<br><br>因為<strong>白板可以放進另一個白板中（Nested Whiteboards）</strong>。您可以建立一個「心理學」白板，裡面放置「認知心理學」、「行為心理學」等子白板。這種視覺化的封裝，讓第一層看起來極度簡潔，但點擊進入又能看到無限細節。請在下方互動區點擊「認知心理學」體驗。';
+                } else {
+                    title.innerHTML = '🏷️ 標籤：用來管理「概念」，而非屬性';
+                    content.innerHTML = '卡片的屬性（如日期、地點）在系統中並不重要。<strong>標籤應該用於標示這張卡片涉及的「核心概念」</strong>。<br><br>例如，一張探討購物的卡片，加上 <code>#決策疲勞</code> 的標籤。未來當您要寫一篇關於 UX 設計的文章時，點擊 <code>#決策疲勞</code>，系統會跨越所有白板，將所有具備此概念的卡片羅列出來，幫助您靈感碰撞。請點擊下方卡片上的標籤體驗。';
+                }
+            },
+
+            enterLayer2() {
+                document.getElementById('wb-layer-1').classList.add('hidden');
+                const layer2 = document.getElementById('wb-layer-2');
+                layer2.classList.remove('hidden');
+                
+                // Retrigger animation
+                layer2.classList.remove('card-enter');
+                void layer2.offsetWidth;
+                layer2.classList.add('card-enter');
+
+                document.getElementById('breadcrumb-layer2').classList.remove('hidden');
+            },
+
+            resetWhiteboardView() {
+                document.getElementById('wb-layer-2').classList.add('hidden');
+                document.getElementById('wb-layer-1').classList.remove('hidden');
+                document.getElementById('breadcrumb-layer2').classList.add('hidden');
+                document.getElementById('concept-search-panel').classList.add('hidden');
+            },
+
+            highlightConcept(conceptName) {
+                const panel = document.getElementById('concept-search-panel');
+                document.getElementById('active-concept-name').innerText = '#' + conceptName;
+                
+                // Mock search results
+                const resultsEl = document.getElementById('concept-results');
+                resultsEl.innerHTML = '';
+                
+                const mockResults = {
+                    '系統一與系統二': [
+                        '↳ [卡片] 大腦的雙系統運作機制 (所在: 認知心理學白板)',
+                        '↳ [卡片] 捷思法與偏誤 (所在: 決策行為白板)'
+                    ],
+                    '決策疲勞': [
+                        '↳ [卡片] 意志力是一種消耗品 (所在: 認知心理學白板)',
+                        '↳ [卡片] 為什麼賈伯斯只穿同一套衣服 (所在: 習慣建立白板)',
+                        '↳ [卡片] 電商結帳頁面的極簡設計 (所在: UX 設計案例)'
+                    ]
+                };
+
+                const results = mockResults[conceptName] || ['↳ 找到 1 張相關卡片'];
+                results.forEach(res => {
+                    resultsEl.innerHTML += `<li class="border-b border-slate-600 pb-1 mb-1 last:border-0 hover:text-indigo-300 cursor-pointer transition-colors">${res}</li>`;
+                });
+
+                panel.classList.remove('hidden');
+                
+                // Animation
+                panel.classList.remove('card-enter');
+                void panel.offsetWidth;
+                panel.classList.add('card-enter');
+            },
+
+            // --- Project Module Logic ---
+            referenceCard(sourceElement, title) {
+                // Find next available dropzone
+                const dz = document.getElementById(`dropzone-${this.state.dropzoneIndex}`);
+                if (!dz) {
+                    this.alert("大綱已滿，模擬結束。");
+                    return;
+                }
+
+                // Simulate referencing: Create a small version of the card in the dropzone
+                dz.innerHTML = `
+                    <div class="bg-white border-l-4 border-indigo-500 shadow text-slate-700 w-full text-left p-2 rounded relative card-enter">
+                        <span class="absolute right-2 top-2 text-[10px] bg-slate-100 text-slate-500 px-1 rounded">🔗 引用</span>
+                        <div class="font-bold text-sm">${title}</div>
+                    </div>
+                `;
+                dz.classList.remove('border-dashed', 'bg-indigo-50/50', 'text-indigo-400', 'justify-center');
+                dz.classList.add('bg-transparent', 'border-transparent', 'justify-start', 'p-0');
+
+                // Visual feedback on source
+                sourceElement.classList.add('opacity-50', 'pointer-events-none');
+                
+                this.state.dropzoneIndex++;
+            },
+
+            // --- Chart.js Setup ---
+            initChart() {
+                const ctx = document.getElementById('knowledgeChart').getContext('2d');
+                
+                // Data simulation
+                const labels = ['第 1 個月', '第 3 個月', '第 6 個月', '第 1 年', '第 2 年', '第 3 年'];
+                const linearData = [10, 25, 40, 60, 80, 100]; // Linear growth
+                const networkedData = [5, 15, 35, 80, 180, 350]; // Exponential growth due to combinations
+
+                this.chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: '傳統線性筆記 (無連結)',
+                                data: linearData,
+                                borderColor: '#94A3B8', // Slate 400
+                                backgroundColor: 'transparent',
+                                borderDash: [5, 5],
+                                tension: 0.3,
+                                pointRadius: 4
+                            },
+                            {
+                                label: 'Heptabase 網狀知識庫',
+                                data: networkedData,
+                                borderColor: '#4F46E5', // Indigo 600
+                                backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                                fill: true,
+                                tension: 0.4,
+                                pointBackgroundColor: '#fff',
+                                pointBorderColor: '#4F46E5',
+                                pointBorderWidth: 2,
+                                pointRadius: 5,
+                                pointHoverRadius: 7
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                                labels: { font: { family: "'Noto Sans TC', sans-serif" } }
+                            },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false,
+                                backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                                titleFont: { family: "'Noto Sans TC', sans-serif" },
+                                bodyFont: { family: "'Noto Sans TC', sans-serif" }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: '產出效率 / 知識連結數量',
+                                    font: { family: "'Noto Sans TC', sans-serif" }
+                                },
+                                grid: { color: '#F1F5F9' }
+                            },
+                            x: {
+                                grid: { display: false }
+                            }
+                        },
+                        interaction: {
+                            mode: 'nearest',
+                            axis: 'x',
+                            intersect: false
+                        }
+                    }
+                });
+            },
+
+            // Utility
+            alert(msg) {
+                // Create a non-intrusive toast instead of browser alert
+                const toast = document.createElement('div');
+                toast.className = 'fixed bottom-4 right-4 bg-slate-800 text-white px-4 py-2 rounded shadow-lg z-50 card-enter text-sm';
+                toast.innerText = msg;
+                document.body.appendChild(toast);
+                setTimeout(() => {
+                    toast.classList.add('opacity-0', 'transition-opacity', 'duration-500');
+                    setTimeout(() => toast.remove(), 500);
+                }, 3000);
+            }
+        };
+
+        // Initialize application when DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            app.init();
+            
+            // Set initial tab styling
+            document.querySelector('[data-target="vision"]').classList.add('bg-indigo-50', 'text-indigo-700');
+        });
+    </script>
+</body>
+</html>
